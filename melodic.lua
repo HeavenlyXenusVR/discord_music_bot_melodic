@@ -2916,12 +2916,18 @@ local function handle_direct_order(order)
   local cmd = order.command
   local ok, err = pcall(function()
     if cmd == "PLAY" and order.data and order.vc_id and order.vc_id ~= "0" then
-      local tracks, _, terr = search_playables(order.data)
+      local tracks, playlist_name, terr = search_playables(order.data)
       if not tracks or #tracks == 0 then error("could not resolve source: " .. tostring(terr), 0) end
       for _, t in ipairs(tracks) do
         enqueue_track(guild_id, t.uri, t.title, nil)
       end
       if #tracks > 1 then shuffle_queue(guild_id, true) end
+      -- Mirrors /play's own playlist-tracking condition -- without this, a
+      -- playlist queued via SwarmPanel (rather than /play) never registered
+      -- for auto-add/auto-remove sync at all.
+      if playlist_name and is_playlist_source(order.data) then
+        set_active_playlist(guild_id, order.data, tracks, nil, order.vc_id)
+      end
       snapshot_backup(guild_id)
       if not playback[guild_id] then process_queue(guild_id, order.vc_id) end
     elseif cmd == "RECOVER" then
